@@ -4,6 +4,8 @@ import com.willfp.eco.core.integrations.hologram.Hologram
 import com.willfp.eco.core.integrations.hologram.HologramManager
 import com.willfp.ecocrates.crate.Crate
 import com.willfp.ecocrates.plugin
+import com.willfp.ecocrates.util.CrateDisplayItems
+import com.willfp.ecocrates.util.RollItems
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Item
@@ -112,7 +114,7 @@ class PlacedCrate(
             // clear the other items, but not roll animation items
             item?.let { item ->
                 item.getNearbyEntities(0.5, 0.5, 0.5).filterIsInstance<Item>()
-                    .filter { !it.hasGravity() && !it.hasMetadata("ecocrates-roll-item") }
+                    .filter { !it.hasGravity() && !RollItems.isRollItem(it) }
                     .forEach { it.remove() }
             }
 
@@ -123,9 +125,10 @@ class PlacedCrate(
                 ).filterIsInstance<Item>()
                     // Roll animation items float here too, and adopting one would
                     // both corrupt the roll and leave the crate without a preview.
-                    .firstOrNull { !it.hasGravity() && !it.hasMetadata("ecocrates-roll-item") }
+                    .firstOrNull { !it.hasGravity() && !RollItems.isRollItem(it) }
 
                 if (scan != null) {
+                    CrateDisplayItems.mark(scan)
                     item = scan
                 }
             }
@@ -140,6 +143,7 @@ class PlacedCrate(
                 entity.setGravity(false)
                 entity.isCustomNameVisible = true
                 entity.customName = crate.randomRewardName.replace("%reward%", reward.displayName)
+                CrateDisplayItems.mark(entity)
                 item = entity
             }
 

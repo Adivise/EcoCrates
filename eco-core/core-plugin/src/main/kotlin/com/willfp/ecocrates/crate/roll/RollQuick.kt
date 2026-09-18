@@ -1,9 +1,10 @@
 package com.willfp.ecocrates.crate.roll
 
-import com.willfp.ecocrates.crate.Crate
 import com.willfp.ecocrates.crate.OpenMethod
 import com.willfp.ecocrates.plugin
 import com.willfp.ecocrates.reward.Reward
+import com.willfp.ecocrates.reward.RewardSource
+import com.willfp.ecocrates.util.RollItems
 import org.bukkit.Location
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
@@ -11,7 +12,7 @@ import org.bukkit.util.Vector
 
 class RollQuick private constructor(
     override val reward: Reward,
-    override val crate: Crate,
+    override val source: RewardSource,
     override val player: Player,
     override val location: Location,
     override val isReroll: Boolean,
@@ -31,17 +32,22 @@ class RollQuick private constructor(
     override fun roll() {
         val world = location.world!!
 
-        item = world.dropItem(location, reward.getDisplay(player, crate))
+        item = world.dropItem(location, reward.getDisplay(player, source))
         item.pickupDelay = Int.MAX_VALUE
         item.setGravity(false)
         item.isCustomNameVisible = true
         item.customName = reward.displayName
-        item.setMetadata("ecocrates-roll-item", plugin.metadataValueFactory.create(true))
+        RollItems.mark(item)
 
         player.closeInventory()
     }
 
     override fun tick(tick: Int) {
+        if (!item.isValid) {
+            done = true
+            return
+        }
+
         if (item.location.toVector().distance(end) < 0.1) {
             item.teleport(end.toLocation(item.world))
             item.velocity = Vector(0, 0, 0)
@@ -72,7 +78,7 @@ class RollQuick private constructor(
         override fun create(options: RollOptions): RollQuick =
             RollQuick(
                 options.reward,
-                options.crate,
+                options.source,
                 options.player,
                 options.location,
                 options.isReroll,
