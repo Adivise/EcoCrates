@@ -53,19 +53,15 @@ class Reward(
     val name = config.getFormattedString("name")
     val displayName = config.getFormattedString("display.name")
 
-    private val permission = Permission(
-        "ecocrates.rewards.$id",
-        "Allows getting $id as a reward",
-        PermissionDefault.TRUE
-    ).apply {
-        val wildcard = Bukkit.getPluginManager().getPermission("ecocrates.rewards.*")
-        if (wildcard != null) {
-            addParent(wildcard, true)
-        }
-        if (Bukkit.getPluginManager().getPermission("ecocrates.rewards.$id") == null) {
+    private val permission: Permission =
+        Bukkit.getPluginManager().getPermission("ecocrates.rewards.$id") ?: Permission(
+            "ecocrates.rewards.$id",
+            "Allows getting $id as a reward",
+            PermissionDefault.TRUE
+        ).apply {
+            Bukkit.getPluginManager().getPermission("ecocrates.rewards.*")?.let { addParent(it, true) }
             Bukkit.getPluginManager().addPermission(this)
         }
-    }
 
     val maxWins = config.getInt("max-wins")
 
@@ -86,13 +82,18 @@ class Reward(
     fun getDisplay(player: Player, source: RewardSource): ItemStack {
         val item = baseDisplay.clone()
         val fis = FastItemStack.wrap(item)
-        val lore = config.getStrings("display.lore").map {
-            it.replace(
+        val weights = DisplayRewardWeights.get(player, source)
+        val rewardWeight = weights.find { it.reward == this } ?: getRewardWeight(player)
+        val chance = weights.sumOf { it.effectiveWeight }.let { totalWeight ->
+            if (totalWeight <= 0.0) 0.0 else rewardWeight.effectiveWeight / totalWeight * 100
+        }
+        val lore = config.getStrings("display.lore").map { line ->
+            line.replace(
                 "%chance%",
-                formatChance(getPercentageChance(player, source.rewards))
+                formatChance(chance)
             ).replace(
                 "%weight%",
-                this.getWeight(player).toNiceString()
+                rewardWeight.weight.toNiceString()
             ).formatEco(player)
         }
 
@@ -130,8 +131,16 @@ class Reward(
         return event.weight
     }
 
-    fun getEffectiveWeight(player: Player): Double {
-        var weight = this.getWeight(player)
+    fun getEffectiveWeight(player: Player): Double =
+        applyPermissionMultiplier(player, this.getWeight(player))
+
+    fun getRewardWeight(player: Player): RewardWeight {
+        val weight = this.getWeight(player)
+        return RewardWeight(this, weight, applyPermissionMultiplier(player, weight))
+    }
+
+    private fun applyPermissionMultiplier(player: Player, baseWeight: Double): Double {
+        var weight = baseWeight
 
         if (canPermissionMultiply) {
             weight *= PermissionMultipliers.getForPlayer(player).multiplier
